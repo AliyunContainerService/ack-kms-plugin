@@ -1,8 +1,8 @@
-# Alibaba Cloud Kubernetes KMS Plugin
+# KMS provider for Alibaba Cloud
 
 ## Overview
 
-Kubernetes KMS plugin for Alibaba Cloud KMS - Enable encryption at rest of Kubernetes secret in etcd with the key in  Alibaba Cloud KMS
+KMS provider for Alibaba Cloud - Enable encryption at rest of Kubernetes secret in etcd with the key with Alibaba Cloud Key Management Service
 
 
 ## Prerequisites ##
@@ -55,7 +55,7 @@ __Notice__: if your Kubernetes version is 1.13* or later, please refer to [kms-p
 
 3 Replace the following variables in [`k8s-kms-plugin.yaml`](manifests/k8s-kms-plugin.yaml)
 
-* `{{ .Region }}`: alibaba cloud region id, if your cluster deploy on ECS, you can get the value by ```curl http://100.100.100.200/latest/meta-data/region-id
+* `{{ .Region }}`: alibaba cloud region id, if your cluster deploy on ECS, you can get the value by ```curl http://100.100.100.200/latest/meta-data/region-id```
 * `{{ .KeyId }}`: the alibaba cloud KMS key id for secret encryption
 * `{{ .AK }}`and `{{ .AK_Secret }}`: the accesskey and secret of your alibab cloud account, if you using subaccout, please refer to [kms ram auth][kms-ram-auth] to make sure the account has authorized using the required KMS resources.
 
@@ -99,4 +99,4 @@ the output should match `mykey: bXlkYXRh`, which is the encoded data of `mydata`
 
 [k8s-static-pod]: https://kubernetes.io/docs/tasks/administer-cluster/static-pod/
 [encrypting-config]:https://kubernetes.io/docs/tasks/administer-cluster/kms-provider/#encrypting-your-data-with-the-kms-provider
-[kms-ram-auth]:https://help.aliyun.com/document_detail/28953.html?spm=a2c4g.11186623.6.559.1e805de1bx2diN
+[kms-ram-auth]:https://help.aliyun.com/document_detail/28953.html
