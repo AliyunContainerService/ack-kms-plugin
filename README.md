@@ -56,7 +56,6 @@ __Notice__: if your Kubernetes version is 1.13* or later, please refer to [kms-p
 3 Replace the following variables in [`k8s-kms-plugin.yaml`](manifests/k8s-kms-plugin.yaml)
 
 * `{{ .Region }}`: alibaba cloud region id, if your cluster deploy on ECS, you can get the value by ```curl http://100.100.100.200/latest/meta-data/region-id
-```
 * `{{ .KeyId }}`: the alibaba cloud KMS key id for secret encryption
 * `{{ .AK }}`and `{{ .AK_Secret }}`: the accesskey and secret of your alibab cloud account, if you using subaccout, please refer to [kms ram auth][kms-ram-auth] to make sure the account has authorized using the required KMS resources.
 
