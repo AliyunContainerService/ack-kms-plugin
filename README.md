@@ -1,9 +1,8 @@
-# KMS provider for Alibaba Cloud
+# KMS provider plugin for Alibaba Cloud
 
 ## Overview
 
-KMS provider for Alibaba Cloud - Enable encryption at rest of Kubernetes secret in etcd with the key with Alibaba Cloud Key Management Service
-
+KMS provider plugin for Alibaba Cloud - Enable encryption at rest of Kubernetes secret backed by Alibaba Cloud Key Management Service
 
 ## Prerequisites ##
 
