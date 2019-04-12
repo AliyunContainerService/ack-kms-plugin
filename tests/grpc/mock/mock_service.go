@@ -5,8 +5,8 @@
 package mock
 
 import (
-	gomock "github.com/golang/mock/gomock"
 	v1beta1 "github.com/AliyunContainerService/ack-kms-plugin/v1beta1"
+	gomock "github.com/golang/mock/gomock"
 	context "golang.org/x/net/context"
 	grpc "google.golang.org/grpc"
 	reflect "reflect"

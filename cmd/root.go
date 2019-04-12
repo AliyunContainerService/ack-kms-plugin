@@ -10,8 +10,8 @@ import (
 	"syscall"
 
 	"fmt"
-	"github.com/golang/glog"
 	"github.com/AliyunContainerService/ack-kms-plugin/plugin"
+	"github.com/golang/glog"
 	"strconv"
 )
 

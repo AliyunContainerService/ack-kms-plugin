@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"testing"
 
+	v1beta1 "github.com/AliyunContainerService/ack-kms-plugin/v1beta1"
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
-	v1beta1 "github.com/AliyunContainerService/ack-kms-plugin/v1beta1"
 	"golang.org/x/net/context"
 )
 
