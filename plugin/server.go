@@ -151,10 +151,6 @@ func (s *KMSServer) Encrypt(ctx context.Context, request *k8spb.EncryptRequest) 
 		return &k8spb.EncryptResponse{}, err
 	}
 
-	//cipher, err := base64.StdEncoding.DecodeString(response.CiphertextBlob)
-	//if err != nil {
-	//	return nil, err
-	//}
 	glog.V(4).Infof("Encrypt request %s finish", response.RequestId)
 
 	return &k8spb.EncryptResponse{Cipher: []byte(response.CiphertextBlob)}, nil
@@ -188,7 +184,7 @@ func (s *KMSServer) Decrypt(ctx context.Context, request *k8spb.DecryptRequest) 
 		return &k8spb.DecryptResponse{}, err
 	}
 
-	plain, err := base64.RawURLEncoding.DecodeString(response.Plaintext)
+	plain, err := base64.StdEncoding.DecodeString(response.Plaintext)
 	if err != nil {
 		glog.Errorf("failed to decode plain text, error: %v", err)
 		return &k8spb.DecryptResponse{}, err
