@@ -10,9 +10,28 @@ Make sure you have a Kubernetes cluster v1.10+, as you will need the [PR](https:
 
 ## Configurations ##
 
-From all master nodes:
+__From all master nodes:__
 
 1 Create `/var/run/kmsplugin/encryptionconfig.yaml`
+
+if Kubernetes version is 1.13* or later
+
+~~~yaml
+apiVersion: apiserver.config.k8s.io/v1
+kind: EncryptionConfiguration
+resources:
+  - resources:
+    - secrets
+    providers:
+    - kms:
+        name: grpc-kms-provider
+        endpoint: unix:///tmp/socketfile.sock
+        cachesize: 1000
+        timeout: 3s
+    - identity: {}
+~~~
+
+__else__ earlier version use below
 
 ```yaml
 kind: EncryptionConfig
@@ -40,22 +59,23 @@ Mount `/var/run/kmsplugin` to access the socket:
 ```yaml
 ...
  volumeMounts:
-        - name: "kms-sock"
-          mountPath: "/var/run/kmsplugin"
+        - name: kms-sock
+          mountPath: /var/run/kmsplugin
 ...
  volumes:
-    - name: "kms-sock"
+    - name: kms-sock
       hostPath:
-        path: "/var/run/kmsplugin"
+        path: /var/run/kmsplugin
 
 ```
-__Notice__: if your Kubernetes version is 1.13* or later, please refer to [kms-provider config][encrypting-config] for the encryption configuration
+
 
 
 3 Replace the following variables in [`k8s-kms-plugin.yaml`](manifests/k8s-kms-plugin.yaml)
 
 * `{{ .Region }}`: alibaba cloud region id, if your cluster deploy on ECS, you can get the value by ```curl http://100.100.100.200/latest/meta-data/region-id```
-* `{{ .KeyId }}`: the alibaba cloud KMS key id for secret encryption
+* `{{ .KeyId }}`: the alibaba cloud KMS key id for secret encryption in KMS service list
+![KeyId](./images/kms-key-id.png)
 * `{{ .AK }}`and `{{ .AK_Secret }}`: the accesskey and secret of your alibab cloud account, if you using subaccout, please refer to [kms ram auth][kms-ram-auth] to make sure the account has authorized using the required KMS resources.
 
 then move the yaml under `/etc/kubernetes/manifests`, kubelet will create a [static pod][k8s-static-pod] that starts the gRPC service. You should do this on all master nodes, and check all of them running as:
@@ -80,7 +100,9 @@ Now the cluster should use an envelope encryption scheme to encrypt the secret i
 kubectl create secret generic secret1 -n default --from-literal=mykey=mydata
 ```
 
-2 Using etcdctl, read the secret out of the etcd:
+2 Using etcdctl, read the secret out of the etcd __in the master node__:
+
+ps: the {{.local-ip}} should be replaced by one of the master node ip.
 
 ```bash
 sudo ETCDCTL_API=3 etcdctl --cacert=/etc/kubernetes/pki/etcd/ca.pem --cert=/etc/kubernetes/pki/etcd/etcd-client.pem --key=/etc/kubernetes/pki/etcd/etcd-client-key.pem --endpoints=https://{{.local-ip}}:2379 get /registry/secrets/default/secret1
