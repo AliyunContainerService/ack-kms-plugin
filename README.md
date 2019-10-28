@@ -14,9 +14,9 @@ __From all master nodes:__
 
 1 Create `/var/run/kmsplugin/encryptionconfig.yaml`
 
-if Kubernetes version is 1.13* or later
+if your cluster version is 1.13* or later
 
-~~~yaml
+```yaml
 apiVersion: apiserver.config.k8s.io/v1
 kind: EncryptionConfiguration
 resources:
@@ -25,13 +25,13 @@ resources:
     providers:
     - kms:
         name: grpc-kms-provider
-        endpoint: unix:///tmp/socketfile.sock
+        endpoint: unix:///var/run/kmsplugin/grpc.sock
         cachesize: 1000
         timeout: 3s
     - identity: {}
-~~~
+```
 
-__else__ earlier version use below
+__else__ prior version please use the config below:
 
 ```yaml
 kind: EncryptionConfig
@@ -51,21 +51,28 @@ resources:
 2 Modify `/etc/kubernetes/manifests/kube-apiserver.yaml` 
 Add the following flag:
 
+if your cluster version is 1.13* or later
+```yaml
+--encryption-provider-config=/var/run/kmsplugin/encryptionconfig.yaml
+```  
+
+prior version please use
 ```yaml
 --experimental-encryption-provider-config=/var/run/kmsplugin/encryptionconfig.yaml
-```  
+``` 
+
 Mount `/var/run/kmsplugin` to access the socket:
 
 ```yaml
 ...
- volumeMounts:
-        - name: kms-sock
-          mountPath: /var/run/kmsplugin
+  volumeMounts:
+  - name: kms-sock
+    mountPath: /var/run/kmsplugin
 ...
- volumes:
-    - name: kms-sock
-      hostPath:
-        path: /var/run/kmsplugin
+  volumes:
+  - name: kms-sock
+  hostPath:
+    path: /var/run/kmsplugin
 
 ```
 
