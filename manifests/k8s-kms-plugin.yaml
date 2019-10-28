@@ -12,7 +12,7 @@ spec:
       type: DirectoryOrCreate
   containers:
   - name: ack-kms-plugin
-    image: registry.{{ .Region }}.aliyuncs.com/acs/ack-kms-plugin:v1.0.0
+    image: registry.{{ .Region }}.aliyuncs.com/acs/ack-kms-plugin:v1.0.1
     imagePullPolicy: Always
     command:
     - ack-kms-plugin
