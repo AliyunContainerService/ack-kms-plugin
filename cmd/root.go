@@ -51,8 +51,6 @@ func NewRootCommand() *cobra.Command {
 					return kmsError
 				}
 			}
-
-			return nil
 		},
 	}
 

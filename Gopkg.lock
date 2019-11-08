@@ -9,6 +9,7 @@
     "sdk/auth",
     "sdk/auth/credentials",
     "sdk/auth/credentials/provider",
+    "sdk/auth/credentials/providers",
     "sdk/auth/signers",
     "sdk/endpoints",
     "sdk/errors",
@@ -191,6 +192,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a4068be046544fbc0ea491a6740b50c9ff3e383ac73373e4e942aca07afae20b"
+  inputs-digest = "1d21089460efd3e268e513fd89c78a72b8a7d385c0c9aac43ec259843aa6df96"
   solver-name = "gps-cdcl"
   solver-version = 1
