@@ -3,15 +3,20 @@ package plugin
 import (
 	"encoding/base64"
 	"fmt"
-	"net"
-	"os"
-	"time"
-
+	"github.com/aliyun/alibaba-cloud-sdk-go/sdk"
+	aliCloudAuth "github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth"
+	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/credentials/providers"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/kms"
 	"github.com/golang/glog"
 	"golang.org/x/net/context"
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
+	"net"
+	"os"
+	"reflect"
+	"strconv"
+	"sync"
+	"time"
 
 	k8spb "github.com/AliyunContainerService/ack-kms-plugin/v1beta1"
 )
@@ -25,51 +30,102 @@ const (
 	runtimeVersion = "0.1.0"
 	// REGION is region id env
 	REGION = "REGION"
-	//KEY_USAGE_ENCRYPT_DECRYPT is the usage of kms key
-	KEY_USAGE_ENCRYPT_DECRYPT = "ENCRYPT/DECRYPT"
+	// KeyUsageEncryptDecrypt is the usage of kms key
+	keyUsageEncryptDecrypt = "ENCRYPT/DECRYPT"
 	// HTTPS protocol
 	HTTPS = "https"
+	// credential from meta server would expire every 60 mins
+	defaultCredCheckFreqSeconds = 3600
 )
 
 // KMSServer is t CloudKMS plugin for K8S.
 type KMSServer struct {
 	client           *kms.Client
 	domain           string //kms domain
+	region           string //kms region id
 	keyID            string // *kms.KeyMetadata
 	pathToUnixSocket string
 	net.Listener
 	*grpc.Server
+	credLock  sync.Mutex //share the latest credentials across goroutines.
+	lastCreds aliCloudAuth.Credential
+	stopCh    chan struct{} // Detects if the kms server is closing.
 }
 
 // New creates an instance of the KMS Service Server.
 func New(pathToUnixSocketFile, keyID string) (*KMSServer, error) {
-	KMSServer := new(KMSServer)
-	KMSServer.pathToUnixSocket = pathToUnixSocketFile
-	KMSServer.keyID = keyID
+	kMSServer := new(KMSServer)
+	kMSServer.pathToUnixSocket = pathToUnixSocketFile
+	kMSServer.keyID = keyID
 	region := GetMetaData(RegionID)
 	if region == "" {
 		return nil, fmt.Errorf("empty region set in env")
 	}
-	KMSServer.domain = fmt.Sprintf("kms-vpc.%s.aliyuncs.com", region)
+	kMSServer.region = region
+	kMSServer.domain = fmt.Sprintf("kms-vpc.%s.aliyuncs.com", region)
+	// Check for an optional custom frequency at which we should poll for creds.
+	credCheckFreqSec := defaultCredCheckFreqSeconds
+	checkFreqSecRaw := os.Getenv("CREDENTIAL_INTERVAL")
+	if checkFreqSecRaw != "" {
+		glog.V(4).Infof("use customized credential pull interval %s", checkFreqSecRaw)
+		checkFreqSecInt, err := strconv.Atoi(checkFreqSecRaw)
+		if err != nil {
+			return nil, fmt.Errorf("could not convert 'CREDENTIAL_INTERVAL' value to int")
+		}
+		credCheckFreqSec = checkFreqSecInt
+	}
 
-	//TODO init kms client with sts token
-	accessKey := os.Getenv("ACCESS_KEY_ID")
-	accessSecret := os.Getenv("ACCESS_KEY_SECRET")
-	if accessKey == "" || accessSecret == "" {
-		return nil, fmt.Errorf("empty AK env set in env")
+	credConfig := &providers.Configuration{}
+	credConfig.AccessKeyID = os.Getenv("ACCESS_KEY_ID")
+	credConfig.AccessKeySecret = os.Getenv("ACCESS_KEY_SECRET")
+	credentialChain := []providers.Provider{
+		providers.NewConfigurationCredentialProvider(credConfig),
+		providers.NewInstanceMetadataProvider(),
 	}
-	client, err := kms.NewClientWithAccessKey(region, accessKey, accessSecret)
+	credProvider := providers.NewChainProvider(credentialChain)
+
+	// Do an initial population of the creds because we want to err right away if we can't
+	// even get a first set.
+	lastCreds, err := credProvider.Retrieve()
 	if err != nil {
-		return nil, fmt.Errorf("failed to init kms client, err: %v", client)
+		return nil, err
 	}
-	KMSServer.client = client
-	return KMSServer, nil
+	clientConfig := sdk.NewConfig()
+	clientConfig.Scheme = "https"
+	client, err := kms.NewClientWithOptions(region, clientConfig, lastCreds)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init kms client, err: %v", err)
+	}
+	kMSServer.lastCreds = lastCreds
+	kMSServer.client = client
+	//loop to refresh the client credential
+	if credConfig.AccessKeyID == "" && credConfig.AccessKeySecret == "" {
+		go kMSServer.pullForCreds(credProvider, credCheckFreqSec)
+	}
+	return kMSServer, nil
+}
+
+//refresh the client credential if ak not set
+func (s *KMSServer) pullForCreds(credProvider providers.Provider, frequencySeconds int) {
+	ticker := time.NewTicker(time.Duration(frequencySeconds) * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.stopCh:
+			glog.Warningf("stopping the pulling channel")
+			return
+		case <-ticker.C:
+			if err := s.checkCredentials(credProvider); err != nil {
+				glog.Warningf("unable to retrieve current credentials, error: %v", err)
+			}
+		}
+	}
 }
 
 //generate alibaba cloud kms key
 func (s *KMSServer) getKey(client *kms.Client) (string, error) {
 	args := &kms.CreateKeyRequest{
-		KeyUsage:    KEY_USAGE_ENCRYPT_DECRYPT,
+		KeyUsage:    keyUsageEncryptDecrypt,
 		Description: fmt.Sprintf("kms-plugin-%d", time.Now().Unix()),
 	}
 	//args.Domain = s.domain
@@ -112,7 +168,10 @@ func (s *KMSServer) StartRPCServer() (*grpc.Server, chan error) {
 	}
 
 	go func() {
-		defer close(errorChan)
+		defer func() {
+			close(errorChan)
+			close(s.stopCh)
+		}()
 		errorChan <- s.Serve(s.Listener)
 	}()
 	glog.V(4).Infof("kms server started successfully.")
@@ -126,7 +185,7 @@ func (s *KMSServer) Version(ctx context.Context, request *k8spb.VersionRequest) 
 	return &k8spb.VersionResponse{Version: Version, RuntimeName: runtime, RuntimeVersion: runtimeVersion}, nil
 }
 
-//Encrypt execute encryption operation in KMS provider.
+//Encrypt execute encryption operation in KMS providers.
 func (s *KMSServer) Encrypt(ctx context.Context, request *k8spb.EncryptRequest) (*k8spb.EncryptResponse, error) {
 	glog.V(4).Infoln("Processing EncryptRequest: ")
 	if s.keyID == "" {
@@ -156,7 +215,7 @@ func (s *KMSServer) Encrypt(ctx context.Context, request *k8spb.EncryptRequest) 
 	return &k8spb.EncryptResponse{Cipher: []byte(response.CiphertextBlob)}, nil
 }
 
-//Decrypt execute decryption operation in KMS provider.
+//Decrypt execute decryption operation in KMS providers.
 func (s *KMSServer) Decrypt(ctx context.Context, request *k8spb.DecryptRequest) (*k8spb.DecryptResponse, error) {
 	glog.V(4).Infoln("Processing DecryptRequest: ")
 
@@ -197,5 +256,31 @@ func (s *KMSServer) cleanSockFile() error {
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to delete socket file, error: %v", err)
 	}
+	return nil
+}
+
+func (s *KMSServer) checkCredentials(credProvider providers.Provider) error {
+	s.credLock.Lock()
+	defer s.credLock.Unlock()
+
+	glog.V(6).Infoln("checking for new credentials")
+	currentCreds, err := credProvider.Retrieve()
+	if err != nil {
+		return err
+	}
+	// need DeepEqual for refresh lastCreds
+	if reflect.DeepEqual(currentCreds, s.lastCreds) {
+		return nil
+	}
+	glog.V(6).Infoln("credentials rotate")
+	s.lastCreds = currentCreds
+
+	clientConfig := sdk.NewConfig()
+	clientConfig.Scheme = "https"
+	client, err := kms.NewClientWithOptions(s.region, clientConfig, currentCreds)
+	if err != nil {
+		return fmt.Errorf("failed to init kms client, err: %v", err)
+	}
+	s.client = client
 	return nil
 }

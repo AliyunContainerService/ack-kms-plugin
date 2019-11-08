@@ -71,8 +71,8 @@ Mount `/var/run/kmsplugin` to access the socket:
 ...
   volumes:
   - name: kms-sock
-  hostPath:
-    path: /var/run/kmsplugin
+    hostPath:
+      path: /var/run/kmsplugin
 
 ```
 
@@ -83,7 +83,40 @@ Mount `/var/run/kmsplugin` to access the socket:
 * `{{ .Region }}`: alibaba cloud region id, if your cluster deploy on ECS, you can get the value by ```curl http://100.100.100.200/latest/meta-data/region-id```
 * `{{ .KeyId }}`: the alibaba cloud KMS key id for secret encryption in KMS service list
 ![KeyId](./images/kms-key-id.png)
-* `{{ .AK }}`and `{{ .AK_Secret }}`: the accesskey and secret of your alibab cloud account, if you using subaccout, please refer to [kms ram auth][kms-ram-auth] to make sure the account has authorized using the required KMS resources.
+
+**optional**：
+
+The kms plugin support auto periodically pull the Alibaba Cloud STS credentials based on the RAM role from your ECS instance metadata, the STS credentials would be used to request KMS service for 
+encryption/decryption.
+
+
+Before you install the kms plugin, please ensure the target RAM role from ECS instance metadata has been added the required KMS permissions, firstly please login to your master ECS node and curl the URL of instance meta server as this command:
+
+```bash
+curl http://100.100.100.200/latest/meta-data/ram/security-credentials/
+```
+
+find the target role in RAM console with the name which response from last curl request, and make sure the required KMS policy below has been added. 
+
+```yaml
+        {
+            "Action": [
+                "kms:DescribeKey",
+                "kms:Encrypt",
+                "kms:Decrypt"
+            ],
+            "Resource": [
+                "*"
+            ],
+            "Effect": "Allow"
+        }
+```
+
+you can also configure the AK meta info in the `env` field of plugin manifest as below, if you choose to the AK way, our kms plugin will not pull the STS credentials :
+
+ `{{ .AK }}`and `{{ .AK_Secret }}`: the accesskey and secret of your Alibaba Cloud account, if you using subaccout, please refer to [kms ram auth][kms-ram-auth] to make sure the account has authorized using the required KMS resources.
+
+**directly configure the RAM AK in pod's env is not a security choice, we recommend to use the STS crendential way**：
 
 then move the yaml under `/etc/kubernetes/manifests`, kubelet will create a [static pod][k8s-static-pod] that starts the gRPC service. You should do this on all master nodes, and check all of them running as:
 

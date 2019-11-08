@@ -12,7 +12,7 @@ spec:
       type: DirectoryOrCreate
   containers:
   - name: ack-kms-plugin
-    image: registry.{{ .Region }}.aliyuncs.com/acs/ack-kms-plugin:v1.0.1
+    image: registry.{{ .Region }}.aliyuncs.com/acs/ack-kms-plugin:v1.0.2
     imagePullPolicy: Always
     command:
     - ack-kms-plugin
@@ -30,10 +30,12 @@ spec:
       timeoutSeconds: 5
       periodSeconds: 300
     env:
-      - name: ACCESS_KEY_ID
+      - name: ACCESS_KEY_ID    #not required if you want plugin help to pull the sts credentials
         value: {{ .AK }}
-      - name: ACCESS_KEY_SECRET
+      - name: ACCESS_KEY_SECRET   #not required if you want plugin help to pull the sts credentials
         value: {{ .AK_Secret }}
+      - name: CREDENTIAL_INTERVAL   #not required if you want plugin help to pull the sts credentials
+        value: {{ .Credential_Interval }}
     volumeMounts:
     - name: kmssocket
       mountPath: /var/run/kmsplugin
