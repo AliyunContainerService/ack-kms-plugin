@@ -1,5 +1,7 @@
 # KMS provider plugin for Alibaba Cloud
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/AliyunContainerService/ack-kms-plugin)](https://goreportcard.com/report/github.com/AliyunContainerService/ack-kms-plugin)
+
 ## Overview
 
 KMS provider plugin for Alibaba Cloud - Enable encryption at rest of Kubernetes secret backed by Alibaba Cloud Key Management Service
@@ -14,7 +16,7 @@ __From all master nodes:__
 
 1 Create `/var/run/kmsplugin/encryptionconfig.yaml`
 
-if your cluster version is 1.13* or later
+if your cluster version is 1.13 or later
 
 ```yaml
 apiVersion: apiserver.config.k8s.io/v1
@@ -51,7 +53,7 @@ resources:
 2 Modify `/etc/kubernetes/manifests/kube-apiserver.yaml` 
 Add the following flag:
 
-if your cluster version is 1.13* or later
+if your cluster version is 1.13 or later
 ```yaml
 --encryption-provider-config=/var/run/kmsplugin/encryptionconfig.yaml
 ```  
@@ -116,7 +118,7 @@ you can also configure the AK meta info in the `env` field of plugin manifest as
 
  `{{ .AK }}`and `{{ .AK_Secret }}`: the accesskey and secret of your Alibaba Cloud account, if you using subaccout, please refer to [kms ram auth][kms-ram-auth] to make sure the account has authorized using the required KMS resources.
 
-**directly configure the RAM AK in pod's env is not a security choice, we recommend to use the STS crendential way**：
+**Directly configure the RAM AK in pod's env is not a security choice, we recommend to use the STS credential way**：
 
 then move the yaml under `/etc/kubernetes/manifests`, kubelet will create a [static pod][k8s-static-pod] that starts the gRPC service. You should do this on all master nodes, and check all of them running as:
 
