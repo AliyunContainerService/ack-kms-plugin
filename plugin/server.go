@@ -122,24 +122,6 @@ func (s *KMSServer) pullForCreds(credProvider providers.Provider, frequencySecon
 	}
 }
 
-//generate alibaba cloud kms key
-func (s *KMSServer) getKey(client *kms.Client) (string, error) {
-	args := &kms.CreateKeyRequest{
-		KeyUsage:    keyUsageEncryptDecrypt,
-		Description: fmt.Sprintf("kms-plugin-%d", time.Now().Unix()),
-	}
-	//args.Domain = s.domain
-	args.SetScheme(HTTPS)
-	response, err := client.CreateKey(args)
-	if err != nil {
-		glog.Errorf("Failed to generate kms key, err: %++v", err)
-		return "", err
-	}
-	glog.V(4).Infof("Success generate kms key = %++v", response)
-	return response.KeyMetadata.KeyId, nil
-
-}
-
 func (s *KMSServer) setupRPCServer() error {
 	if err := s.cleanSockFile(); err != nil {
 		return err
@@ -189,13 +171,9 @@ func (s *KMSServer) Version(ctx context.Context, request *k8spb.VersionRequest) 
 func (s *KMSServer) Encrypt(ctx context.Context, request *k8spb.EncryptRequest) (*k8spb.EncryptResponse, error) {
 	glog.V(4).Infoln("Processing EncryptRequest: ")
 	if s.keyID == "" {
-		key, err := s.getKey(s.client)
-		if err != nil {
-			return nil, err
-		}
-		s.keyID = key
+		glog.Errorf("Empty key found to encrypt...")
+		return &k8spb.EncryptResponse{}, fmt.Errorf("empty key found to encrypt")
 	}
-
 	glog.V(4).Infof("domain %s , key %s", s.domain, s.keyID)
 
 	encReq := kms.CreateEncryptRequest()
@@ -224,13 +202,6 @@ func (s *KMSServer) Decrypt(ctx context.Context, request *k8spb.DecryptRequest) 
 		return &k8spb.DecryptResponse{}, fmt.Errorf("empty key found to decrypt")
 	}
 
-	if s.keyID == "" {
-		key, err := s.getKey(s.client)
-		if err != nil {
-			return nil, err
-		}
-		s.keyID = key
-	}
 	decReq := kms.CreateDecryptRequest()
 	decReq.CiphertextBlob = string(request.Cipher)
 	decReq.Domain = s.domain
