@@ -203,7 +203,6 @@ func (s *KMSServer) Encrypt(ctx context.Context, request *k8spb.EncryptRequest) 
 	encReq.Plaintext = base64.StdEncoding.EncodeToString(request.Plain)
 	encReq.Domain = s.domain
 	encReq.SetScheme(HTTPS)
-	encReq.SetHTTPSInsecure(true)
 	response, err := s.client.Encrypt(encReq)
 	if err != nil {
 		glog.Errorf("Failed to encrypt, error: %v", err)
@@ -235,7 +234,6 @@ func (s *KMSServer) Decrypt(ctx context.Context, request *k8spb.DecryptRequest) 
 	decReq.CiphertextBlob = string(request.Cipher)
 	decReq.Domain = s.domain
 	decReq.SetScheme(HTTPS)
-	decReq.SetHTTPSInsecure(true)
 
 	response, err := s.client.Decrypt(decReq)
 	if err != nil {
