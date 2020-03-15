@@ -1,10 +1,10 @@
 ##############################################################################################################
-binary := kubernetes-kms
-DOCKER_IMAGE := acs/ack-kms-plugin
+BINARY := ack-kms-plugin
+DOCKER_IMAGE ?= acs/ack-kms-plugin
 METALINTER_CONCURRENCY ?= 4
 METALINTER_DEADLINE ?= 180
-VERSION          := v0.0.1
-CGO_ENABLED_FLAG := 0
+VERSION          ?= v0.0.1
+CGO_ENABLED_FLAG ?= 0
 
 ifeq ($(OS),Windows_NT)
 	GOOS_FLAG = windows
@@ -38,7 +38,7 @@ deps: setup
 
 clean:
 	@echo "Clean..."
-	$Q rm -rf $(binary)
+	$Q rm -rf $(BINARY)
 
 setup: clean
 	@echo "Setup..."
@@ -53,7 +53,7 @@ authors:
 
 testint:
 	@echo "Running Integration tests..."
-	$Q sudo GOPATH=$(GOPATH) go test -v -count=1 gitlab.alibaba-inc.com/cos/ack-kms-plugin/tests/client
+	$Q sudo GOPATH=$(GOPATH) go test -v -count=1 github.com/AliyunContainerService/ack-kms-plugin/tests/client
 
 test:
 	@echo "Running Unit Tests..."
@@ -77,6 +77,3 @@ check-all:
 	gometalinter --concurrency=$(METALINTER_CONCURRENCY) --deadline=600s ./... --vendor --cyclo-over=20 \
 		--linter='vet:go vet --no-recurse:PATH:LINE:MESSAGE' --dupl-threshold=50
 		--dupl-threshold=50
-
-clean:
-	rm -f $(BIN)
