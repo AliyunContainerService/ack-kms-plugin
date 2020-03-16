@@ -15,6 +15,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,8 +29,11 @@ const (
 	Version        = "v1beta1"
 	runtime        = "Alibaba Cloud KMS"
 	runtimeVersion = "0.1.0"
-	// REGION is region id env
-	REGION = "REGION"
+	// envRegion is region id env
+	envRegion = "ACK_KMS_REGION_ID"
+	// envKmsDomain is kms domain env
+	envKmsDomain = "ACK_KMS_DOMAIN"
+	defaultKmsDomain = "kms-vpc.%s.aliyuncs.com"
 	// KeyUsageEncryptDecrypt is the usage of kms key
 	keyUsageEncryptDecrypt = "ENCRYPT/DECRYPT"
 	// HTTPS protocol
@@ -54,15 +58,27 @@ type KMSServer struct {
 
 // New creates an instance of the KMS Service Server.
 func New(pathToUnixSocketFile, keyID string) (*KMSServer, error) {
-	kMSServer := new(KMSServer)
+	kMSServer := &KMSServer{
+		stopCh:  make(chan struct{}),
+	}
 	kMSServer.pathToUnixSocket = pathToUnixSocketFile
 	kMSServer.keyID = keyID
-	region := GetMetaData(RegionID)
+	region := os.Getenv(envRegion)
+	if region == "" {
+		region = GetMetaData(RegionID)
+	}
 	if region == "" {
 		return nil, fmt.Errorf("empty region set in env")
 	}
+	domain := os.Getenv(envKmsDomain)
+	if domain == "" {
+		domain = defaultKmsDomain
+	}
+	if strings.Contains(domain, "%s") {
+		domain = fmt.Sprintf(domain, region)
+	}
 	kMSServer.region = region
-	kMSServer.domain = fmt.Sprintf("kms-vpc.%s.aliyuncs.com", region)
+	kMSServer.domain = domain
 	// Check for an optional custom frequency at which we should poll for creds.
 	credCheckFreqSec := defaultCredCheckFreqSeconds
 	checkFreqSecRaw := os.Getenv("CREDENTIAL_INTERVAL")
