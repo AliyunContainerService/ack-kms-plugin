@@ -24,8 +24,6 @@ build:
 	$Q GOOS=${GOOS_FLAG} CGO_ENABLED=${CGO_ENABLED_FLAG} go build .
 
 build-image:
-	@echo "Building..."
-	$Q GOOS=linux CGO_ENABLED=${CGO_ENABLED_FLAG} go build .
 	@echo "Building docker image..."
 	$Q docker build -t $(DOCKER_IMAGE):$(VERSION) .
 
