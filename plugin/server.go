@@ -3,6 +3,14 @@ package plugin
 import (
 	"encoding/base64"
 	"fmt"
+	"net"
+	"os"
+	"reflect"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk"
 	aliCloudAuth "github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/credentials/providers"
@@ -11,13 +19,6 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
-	"net"
-	"os"
-	"reflect"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
 
 	k8spb "github.com/AliyunContainerService/ack-kms-plugin/v1beta1"
 )
@@ -32,7 +33,7 @@ const (
 	// envRegion is region id env
 	envRegion = "ACK_KMS_REGION_ID"
 	// envKmsDomain is kms domain env
-	envKmsDomain = "ACK_KMS_DOMAIN"
+	envKmsDomain     = "ACK_KMS_DOMAIN"
 	defaultKmsDomain = "kms-vpc.%s.aliyuncs.com"
 	// KeyUsageEncryptDecrypt is the usage of kms key
 	keyUsageEncryptDecrypt = "ENCRYPT/DECRYPT"
@@ -59,7 +60,7 @@ type KMSServer struct {
 // New creates an instance of the KMS Service Server.
 func New(pathToUnixSocketFile, keyID string) (*KMSServer, error) {
 	kMSServer := &KMSServer{
-		stopCh:  make(chan struct{}),
+		stopCh: make(chan struct{}),
 	}
 	kMSServer.pathToUnixSocket = pathToUnixSocketFile
 	kMSServer.keyID = keyID
@@ -202,6 +203,11 @@ func (s *KMSServer) Encrypt(ctx context.Context, request *k8spb.EncryptRequest) 
 		glog.Errorf("Failed to encrypt, error: %v", err)
 		return &k8spb.EncryptResponse{}, err
 	}
+	if !response.IsSuccess() || response.CiphertextBlob == "" {
+		glog.Errorf("failed to encrypt, unexpected response: %s", response.GetHttpContentString())
+		return &k8spb.EncryptResponse{}, fmt.Errorf(
+			"failed to encrypt, unexpected response: %s", response.GetHttpContentString())
+	}
 
 	glog.V(4).Infof("Encrypt request %s finish", response.RequestId)
 
@@ -226,6 +232,11 @@ func (s *KMSServer) Decrypt(ctx context.Context, request *k8spb.DecryptRequest) 
 	if err != nil {
 		glog.Errorf("failed to decrypt, error: %v", err)
 		return &k8spb.DecryptResponse{}, err
+	}
+	if !response.IsSuccess() || response.Plaintext == "" {
+		glog.Errorf("failed to decrypt, unexpected response: %s", response.GetHttpContentString())
+		return &k8spb.DecryptResponse{}, fmt.Errorf(
+			"failed to decrypt, unexpected response: %s", response.GetHttpContentString())
 	}
 
 	plain, err := base64.StdEncoding.DecodeString(response.Plaintext)
