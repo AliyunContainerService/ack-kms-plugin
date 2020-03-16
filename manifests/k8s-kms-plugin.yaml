@@ -2,9 +2,10 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: ack-kms-plugin
+  namespace: kube-system
 spec:
   hostNetwork: true
-  restartPolicy: Never
+  restartPolicy: Always
   volumes:
   - name: kmssocket
     hostPath:
