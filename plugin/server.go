@@ -52,7 +52,7 @@ type KMSServer struct {
 	pathToUnixSocket string
 	net.Listener
 	*grpc.Server
-	credLock  sync.Mutex //share the latest credentials across goroutines.
+	credLock  sync.RWMutex //share the latest credentials across goroutines.
 	lastCreds aliCloudAuth.Credential
 	stopCh    chan struct{} // Detects if the kms server is closing.
 }
@@ -198,7 +198,12 @@ func (s *KMSServer) Encrypt(ctx context.Context, request *k8spb.EncryptRequest) 
 	encReq.Plaintext = base64.StdEncoding.EncodeToString(request.Plain)
 	encReq.Domain = s.domain
 	encReq.SetScheme(HTTPS)
-	response, err := s.client.Encrypt(encReq)
+
+	s.credLock.RLock()
+	client := *s.client
+	s.credLock.RUnlock()
+
+	response, err := client.Encrypt(encReq)
 	if err != nil {
 		glog.Errorf("Failed to encrypt, error: %v", err)
 		return &k8spb.EncryptResponse{}, err
@@ -228,7 +233,11 @@ func (s *KMSServer) Decrypt(ctx context.Context, request *k8spb.DecryptRequest) 
 	decReq.Domain = s.domain
 	decReq.SetScheme(HTTPS)
 
-	response, err := s.client.Decrypt(decReq)
+	s.credLock.RLock()
+	client := *s.client
+	s.credLock.RUnlock()
+
+	response, err := client.Decrypt(decReq)
 	if err != nil {
 		glog.Errorf("failed to decrypt, error: %v", err)
 		return &k8spb.DecryptResponse{}, err
@@ -256,9 +265,6 @@ func (s *KMSServer) cleanSockFile() error {
 }
 
 func (s *KMSServer) checkCredentials(credProvider providers.Provider) error {
-	s.credLock.Lock()
-	defer s.credLock.Unlock()
-
 	glog.V(6).Infoln("checking for new credentials")
 	currentCreds, err := credProvider.Retrieve()
 	if err != nil {
@@ -269,7 +275,6 @@ func (s *KMSServer) checkCredentials(credProvider providers.Provider) error {
 		return nil
 	}
 	glog.V(6).Infoln("credentials rotate")
-	s.lastCreds = currentCreds
 
 	clientConfig := sdk.NewConfig()
 	clientConfig.Scheme = "https"
@@ -277,6 +282,11 @@ func (s *KMSServer) checkCredentials(credProvider providers.Provider) error {
 	if err != nil {
 		return fmt.Errorf("failed to init kms client, err: %v", err)
 	}
+
+	s.credLock.Lock()
+	defer s.credLock.Unlock()
+
+	s.lastCreds = currentCreds
 	s.client = client
 	return nil
 }
