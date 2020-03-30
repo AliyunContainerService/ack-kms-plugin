@@ -39,8 +39,8 @@ const (
 	keyUsageEncryptDecrypt = "ENCRYPT/DECRYPT"
 	// HTTPS protocol
 	HTTPS = "https"
-	// credential from meta server would expire every 60 mins
-	defaultCredCheckFreqSeconds = 3600
+	// credential from meta server would expire every 8 mins
+	defaultCredCheckFreqSeconds = 480
 )
 
 // KMSServer is t CloudKMS plugin for K8S.
@@ -89,6 +89,10 @@ func New(pathToUnixSocketFile, keyID string) (*KMSServer, error) {
 		if err != nil {
 			return nil, fmt.Errorf("could not convert 'CREDENTIAL_INTERVAL' value to int")
 		}
+		// should less than 30 minutes
+		if checkFreqSecInt >= 1800 {
+			return nil, fmt.Errorf("the value of 'CREDENTIAL_INTERVAL' should less than 1800")
+		}
 		credCheckFreqSec = checkFreqSecInt
 	}
 
@@ -116,7 +120,7 @@ func New(pathToUnixSocketFile, keyID string) (*KMSServer, error) {
 	kMSServer.lastCreds = lastCreds
 	kMSServer.client = client
 	//loop to refresh the client credential
-	if credConfig.AccessKeyID == "" && credConfig.AccessKeySecret == "" {
+	if credConfig.AccessKeyID == "" || credConfig.AccessKeySecret == "" {
 		go kMSServer.pullForCreds(credProvider, credCheckFreqSec)
 	}
 	return kMSServer, nil
