@@ -1,11 +1,12 @@
-kind: EncryptionConfig
-apiVersion: v1
+apiVersion: apiserver.config.k8s.io/v1
+kind: EncryptionConfiguration
 resources:
   - resources:
     - secrets
     providers:
     - kms:
        name: grpc-kms-provider
-       cachesize: 1000
        endpoint: unix:///var/run/kmsplugin/grpc.sock
+       cachesize: 1000
+       timeout: 3s
     - identity: {}

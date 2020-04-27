@@ -6,6 +6,7 @@ metadata:
 spec:
   hostNetwork: true
   restartPolicy: Always
+  priorityClassName: system-cluster-critical
   volumes:
   - name: kmssocket
     hostPath:
