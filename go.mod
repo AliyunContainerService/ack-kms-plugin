@@ -4,10 +4,7 @@ go 1.21
 
 require (
 	github.com/aliyun/alibaba-cloud-sdk-go v1.63.11
-	github.com/gogo/protobuf v1.3.2
 	github.com/golang/glog v1.1.0
-	github.com/golang/mock v1.6.0
-	github.com/golang/protobuf v1.5.3
 	github.com/spf13/cobra v0.0.3
 	github.com/spf13/pflag v1.0.5
 	golang.org/x/net v0.26.0
@@ -17,6 +14,8 @@ require (
 )
 
 require (
+	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect

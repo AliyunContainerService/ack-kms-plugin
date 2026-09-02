@@ -1,122 +1,65 @@
 package mock
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
-	"encoding/base64"
-	"errors"
-	"fmt"
+	"context"
 	"testing"
 
-	v1beta1 "github.com/AliyunContainerService/ack-kms-plugin/v1beta1"
-	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/proto"
-	"golang.org/x/net/context"
+	kmsv1beta1 "k8s.io/kms/apis/v1beta1"
+	kmsv2 "k8s.io/kms/apis/v2"
 )
 
-var (
-	version = "v1beta1"
-)
+func TestV1Mock(t *testing.T) {
+	m := NewV1Mock()
 
-// func setup(t *testing.T) (*gomock.Controller, kmscmock.MockKeyManagementServiceClient) {
-// 	ctrl := gomock.NewController(t)
-// 	return nil, kmscmock.NewMockKeyManagementServiceClient(&ctrl)
-
-// }
-
-// rpcMsg implements the gomock.Matcher interface
-type rpcMsg struct {
-	msg proto.Message
-}
-
-func (r *rpcMsg) Matches(msg interface{}) bool {
-	m, ok := msg.(proto.Message)
-	if !ok {
-		return false
-	}
-	return proto.Equal(m, r.msg)
-}
-
-func (r *rpcMsg) String() string {
-	return fmt.Sprintf("is %s", r.msg)
-}
-
-//Version
-func TestVersion(t *testing.T) {
-	//ctrl, mockKeyManagementServiceClient := setup(t)
-	ctrl := gomock.NewController(t)
-	mockKeyManagementServiceClient := NewMockKeyManagementServiceClient(ctrl)
-	defer ctrl.Finish()
-	req := &v1beta1.VersionRequest{Version: version}
-	mockKeyManagementServiceClient.EXPECT().Version(
-		gomock.Any(),
-		&rpcMsg{msg: req},
-	).Return(&v1beta1.VersionResponse{Version: version}, nil)
-	exp := "v1beta1"
-	r, _ := mockKeyManagementServiceClient.Version(context.Background(), &v1beta1.VersionRequest{Version: exp})
-	if r != nil {
-		t.Logf("test passed, expect: %s  result: %s", version, exp)
-	}
-}
-
-func TestBadVersion(t *testing.T) {
-	//ctrl, mockKeyManagementServiceClient := setup(t)
-	ctrl := gomock.NewController(t)
-	mockKeyManagementServiceClient := NewMockKeyManagementServiceClient(ctrl)
-	defer ctrl.Finish()
-	mockKeyManagementServiceClient.EXPECT().Version(
-		gomock.Any(),
-		gomock.Any(),
-	).Return(&v1beta1.VersionResponse{Version: version}, errors.New("invalid version"))
-	exp := "v1beta2"
-	_, err := mockKeyManagementServiceClient.Version(context.Background(), &v1beta1.VersionRequest{Version: exp})
+	v, err := m.Version(context.Background(), &kmsv1beta1.VersionRequest{})
 	if err != nil {
-		t.Logf(err.Error())
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if v.Version != "v1beta1" {
+		t.Errorf("expected version v1beta1, got %q", v.Version)
+	}
+
+	enc, err := m.Encrypt(context.Background(), &kmsv1beta1.EncryptRequest{Plain: []byte("data")})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(enc.Cipher) != "data" {
+		t.Errorf("expected cipher data, got %s", enc.Cipher)
+	}
+
+	dec, err := m.Decrypt(context.Background(), &kmsv1beta1.DecryptRequest{Cipher: []byte("data")})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(dec.Plain) != "data" {
+		t.Errorf("expected plain data, got %s", dec.Plain)
 	}
 }
 
-//Encrypt
-func TestEncrypt(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func TestV2Mock(t *testing.T) {
+	m := NewV2Mock()
 
-	genPrivateKey, _ := rsa.GenerateKey(rand.Reader, 2048)
-	genPublicKey := &genPrivateKey.PublicKey
-	message := base64.RawURLEncoding.EncodeToString([]byte("my-data"))
-	ciphertext, _ := rsa.EncryptPKCS1v15(rand.Reader, genPublicKey, []byte(message))
-
-	mockKeyManagementServiceClient := NewMockKeyManagementServiceClient(ctrl)
-	mockKeyManagementServiceClient.EXPECT().Encrypt(
-		gomock.Any(),
-		gomock.Any(),
-	).Return(&v1beta1.EncryptResponse{Cipher: ciphertext}, nil)
-	_, err := mockKeyManagementServiceClient.Encrypt(context.Background(), &v1beta1.EncryptRequest{Version: "v1beta1", Plain: []byte("my-data")})
+	st, err := m.Status(context.Background(), &kmsv2.StatusRequest{})
 	if err != nil {
-		t.Errorf("test encrypt failed")
+		t.Fatalf("unexpected error: %v", err)
 	}
-	t.Logf("test passed")
-}
+	if st.Version != "v2" || st.Healthz != "ok" || st.KeyId != "mock-key" {
+		t.Errorf("unexpected status response: %+v", st)
+	}
 
-// Decrypt
-func TestDecrypt(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	plainText := []byte("my-data")
-	mockKeyManagementServiceClient := NewMockKeyManagementServiceClient(ctrl)
-	mockKeyManagementServiceClient.EXPECT().Decrypt(
-		gomock.Any(),
-		gomock.Any(),
-	).Return(&v1beta1.DecryptResponse{Plain: plainText}, nil)
-
-	genPrivateKey, _ := rsa.GenerateKey(rand.Reader, 2048)
-	genPublicKey := &genPrivateKey.PublicKey
-	message := base64.RawURLEncoding.EncodeToString([]byte("my-data"))
-	ciphertext, _ := rsa.EncryptPKCS1v15(rand.Reader, genPublicKey, []byte(message))
-
-	_, err := mockKeyManagementServiceClient.Decrypt(context.Background(), &v1beta1.DecryptRequest{Version: "v1beta1", Cipher: ciphertext})
+	enc, err := m.Encrypt(context.Background(), &kmsv2.EncryptRequest{Plaintext: []byte("data")})
 	if err != nil {
-		t.Errorf("test decrypt failed")
+		t.Fatalf("unexpected error: %v", err)
 	}
-	t.Logf("test passed")
+	if string(enc.Ciphertext) != "data" || enc.KeyId != "mock-key" {
+		t.Errorf("unexpected encrypt response: %+v", enc)
+	}
+
+	dec, err := m.Decrypt(context.Background(), &kmsv2.DecryptRequest{Ciphertext: []byte("data")})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(dec.Plaintext) != "data" {
+		t.Errorf("expected plaintext data, got %s", dec.Plaintext)
+	}
 }
