@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 
-	k8spb "github.com/AliyunContainerService/ack-kms-plugin/v1beta1"
+	k8spb "k8s.io/kms/apis/v1beta1"
 )
 
 // newCmdHealth provides healthcheck method for kms server.

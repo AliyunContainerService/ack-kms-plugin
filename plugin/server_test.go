@@ -1,56 +1,66 @@
 package plugin
 
 import (
-	"os"
-	"strings"
+	"context"
+	"errors"
 	"testing"
+
+	k8spb "k8s.io/kms/apis/v1beta1"
+	"k8s.io/kms/pkg/service"
 )
 
-func TestNew_CREDENTIAL_INTERVAL_invalid(t *testing.T) {
-	type args struct {
-		pathToUnixSocketFile string
-		keyID                string
+func TestKMSServer_Version(t *testing.T) {
+	s := &KMSServer{client: &fakeClient{}}
+	resp, err := s.Version(context.Background(), &k8spb.VersionRequest{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	tests := []struct {
-		name   string
-		value  string
-		errmsg string
-	}{
-		{
-			name:   "invalide number",
-			value:  "abc",
-			errmsg: "could not convert 'CREDENTIAL_INTERVAL' value to int",
-		},
-		{
-			name:   "greater than 1800",
-			value:  "1801",
-			errmsg: "the value of 'CREDENTIAL_INTERVAL' should less than 1800",
-		},
-		{
-			name:   "equal than 1800",
-			value:  "1800",
-			errmsg: "the value of 'CREDENTIAL_INTERVAL' should less than 1800",
-		},
+	if resp.Version != Version {
+		t.Errorf("expected version %q, got %q", Version, resp.Version)
 	}
-	os.Setenv("ACCESS_KEY_ID", "<access_key_id>")
-	os.Setenv("ACCESS_KEY_SECRET", "<access_key_secret>")
-	os.Setenv("ACK_KMS_REGION_ID", "cn-beijing")
-	defer func() {
-		os.Setenv("ACCESS_KEY_ID", "")
-		os.Setenv("ACCESS_KEY_SECRET", "")
-		os.Setenv("ACK_KMS_REGION_ID", "")
-	}()
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			os.Setenv("CREDENTIAL_INTERVAL", tt.value)
-			_, err := New("/tmp", "kms-id")
-			os.Setenv("CREDENTIAL_INTERVAL", "")
-			if err == nil {
-				t.Errorf("err should not be nil")
-			}
-			if !strings.Contains(err.Error(), tt.errmsg) {
-				t.Errorf("error message(%q) should include %q", err.Error(), tt.errmsg)
-			}
-		})
+	if resp.RuntimeName != runtime {
+		t.Errorf("expected runtime %q, got %q", runtime, resp.RuntimeName)
+	}
+}
+
+func TestKMSServer_Encrypt(t *testing.T) {
+	s := &KMSServer{client: &fakeClient{
+		encryptFunc: func(plain []byte) (*service.EncryptResponse, error) {
+			return &service.EncryptResponse{Ciphertext: []byte("cipher")}, nil
+		},
+	}}
+	resp, err := s.Encrypt(context.Background(), &k8spb.EncryptRequest{Plain: []byte("hello")})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(resp.Cipher) != "cipher" {
+		t.Errorf("expected cipher cipher, got %s", resp.Cipher)
+	}
+}
+
+func TestKMSServer_Decrypt(t *testing.T) {
+	s := &KMSServer{client: &fakeClient{
+		decryptFunc: func(cipher []byte) ([]byte, error) {
+			return []byte("hello"), nil
+		},
+	}}
+	resp, err := s.Decrypt(context.Background(), &k8spb.DecryptRequest{Cipher: []byte("cipher")})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(resp.Plain) != "hello" {
+		t.Errorf("expected plain hello, got %s", resp.Plain)
+	}
+}
+
+func TestKMSServer_EncryptError(t *testing.T) {
+	s := &KMSServer{client: &fakeClient{
+		encryptFunc: func(plain []byte) (*service.EncryptResponse, error) {
+			return nil, errors.New("boom")
+		},
+	}}
+	_, err := s.Encrypt(context.Background(), &k8spb.EncryptRequest{Plain: []byte("hello")})
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }
