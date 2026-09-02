@@ -29,10 +29,10 @@ build-image:
 
 .PHONY: clean deps test testint
 
-deps: setup
+deps:
 	@echo "Ensuring Dependencies..."
 	$Q go env
-	$Q dep ensure
+	$Q go mod download
 
 clean:
 	@echo "Clean..."
@@ -40,7 +40,6 @@ clean:
 
 setup: clean
 	@echo "Setup..."
-	go get -u github.com/golang/dep/cmd/dep
 
 authors:
 	$Q git log --all --format='%aN <%cE>' | sort -u  | sed -n '/github/!p' > GITAUTHORS
