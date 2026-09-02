@@ -2,9 +2,38 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/AliyunContainerService/ack-kms-plugin)](https://goreportcard.com/report/github.com/AliyunContainerService/ack-kms-plugin)
 
-## Overview
+## Overview ##
 
 KMS provider plugin for Alibaba Cloud - Enable encryption at rest of Kubernetes secret backed by Alibaba Cloud Key Management Service
+
+## KMS API Version ##
+
+The plugin implements the Kubernetes KMS v2 gRPC interface by default. Clusters running Kubernetes v1.29+ with the v2 `EncryptionConfiguration` (API version `apiserver.config.k8s.io/v1`) can use the plugin without extra flags.
+
+To also enable the legacy v1beta1 interface - for example for clusters that still use v1 encryption configuration and have v1-encrypted data at rest - start the plugin with:
+
+```bash
+--enable-kms-v1
+```
+
+When the flag is set, both the v1beta1 and v2 services are registered on the same Unix socket; when it is unset (default), only the v2 service is registered.
+
+For reference, the v2 encryption configuration looks like:
+
+```yaml
+apiVersion: apiserver.config.k8s.io/v1
+kind: EncryptionConfiguration
+resources:
+  - resources:
+    - secrets
+    providers:
+    - kms:
+        apiVersion: v2
+        name: grpc-kms-provider
+        endpoint: unix:///var/run/kmsplugin/grpc.sock
+        timeout: 3s
+    - identity: {}
+```
 
 ## Prerequisites ##
 
@@ -153,7 +182,7 @@ ps: the {{.local-ip}} should be replaced by one of the master node ip.
 sudo ETCDCTL_API=3 etcdctl --cacert=/etc/kubernetes/pki/etcd/ca.pem --cert=/etc/kubernetes/pki/etcd/etcd-client.pem --key=/etc/kubernetes/pki/etcd/etcd-client-key.pem --endpoints=https://{{.local-ip}}:2379 get /registry/secrets/default/secret1
 ```
 
-3\. Verify the stored secret is prefixed with `k8s:enc:kms:v1:grpc-kms-provider` which indicates our kms provider has encrypted the resulting data.
+3. Verify the stored secret is prefixed with `k8s:enc:kms:v2:grpc-kms-provider` (v2 encryption) or `k8s:enc:kms:v1:grpc-kms-provider` (legacy v1 encryption) which indicates our kms provider has encrypted the resulting data.
 
 4\. Verify the secret is correctly decrypted:
 
