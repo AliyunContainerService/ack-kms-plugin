@@ -30,17 +30,10 @@ const (
 	Version        = "v1beta1"
 	runtime        = "Alibaba Cloud KMS"
 	runtimeVersion = "0.1.0"
-	// envRegion is region id env
-	envRegion = "ACK_KMS_REGION_ID"
-	// envKmsDomain is kms domain env
-	envKmsDomain     = "ACK_KMS_DOMAIN"
-	defaultKmsDomain = "kms-vpc.%s.aliyuncs.com"
 	// KeyUsageEncryptDecrypt is the usage of kms key
 	keyUsageEncryptDecrypt = "ENCRYPT/DECRYPT"
 	// HTTPS protocol
 	HTTPS = "https"
-	// credential from meta server would expire every 8 mins
-	defaultCredCheckFreqSeconds = 480
 )
 
 // KMSServer is t CloudKMS plugin for K8S.

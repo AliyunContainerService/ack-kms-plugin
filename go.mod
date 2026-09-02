@@ -13,10 +13,10 @@ require (
 	golang.org/x/net v0.26.0
 	golang.org/x/sys v0.24.0
 	google.golang.org/grpc v1.58.3
+	k8s.io/kms v0.29.0
 )
 
 require (
-	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
