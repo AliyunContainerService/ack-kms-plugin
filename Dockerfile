@@ -1,6 +1,10 @@
-FROM golang:1.13
-ENV GO111MODULE off
+FROM golang:1.21
+ENV GO111MODULE on
 WORKDIR /go/src/github.com/AliyunContainerService/ack-kms-plugin
+
+COPY go.mod go.sum ./
+RUN go mod download
+
 COPY . .
 RUN make build
 

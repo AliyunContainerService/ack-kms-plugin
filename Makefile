@@ -50,7 +50,7 @@ authors:
 
 testint:
 	@echo "Running Integration tests..."
-	$Q sudo GOPATH=$(GOPATH) go test -v -count=1 github.com/AliyunContainerService/ack-kms-plugin/tests/client
+	$Q go test -v -count=1 ./tests/client
 
 test:
 	@echo "Running Unit Tests..."
@@ -64,13 +64,11 @@ else
 endif
 
 check:
-	go install ./main.go
+	go build .
 
-	gometalinter --concurrency=$(METALINTER_CONCURRENCY) --deadline=$(METALINTER_DEADLINE)s ./... --vendor --linter='errcheck:errcheck:-ignore=net:Close' --cyclo-over=20 \
-		--linter='vet:go vet --no-recurse -composites=false:PATH:LINE:MESSAGE' --disable=interfacer --dupl-threshold=50
+	# gometalinter is deprecated and does not support Go modules.
+	# Replace with golangci-lint if linting is required in CI.
+	# golangci-lint run ./...
 
 check-all:
-	go install ./main.go
-	gometalinter --concurrency=$(METALINTER_CONCURRENCY) --deadline=600s ./... --vendor --cyclo-over=20 \
-		--linter='vet:go vet --no-recurse:PATH:LINE:MESSAGE' --dupl-threshold=50
-		--dupl-threshold=50
+	go build .
