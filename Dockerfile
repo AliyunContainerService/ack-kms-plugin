@@ -8,7 +8,7 @@ RUN go mod download
 COPY . .
 RUN make build
 
-FROM alpine:3.11
+FROM registry-cn-hangzhou.ack.aliyuncs.com/dev/alpine:3.23-base
 WORKDIR /bin
 
 COPY --from=0 /go/src/github.com/AliyunContainerService/ack-kms-plugin/ack-kms-plugin /bin/ack-kms-plugin
