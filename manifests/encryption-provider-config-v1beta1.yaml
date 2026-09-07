@@ -1,4 +1,6 @@
-# KMS v2 encryption configuration (Kubernetes v1.29+).
+# KMS v1beta1 encryption configuration for legacy clusters (< v1.27),
+# where kube-apiserver does not understand apiVersion: v2 in the kms
+# provider block. The plugin must be started with --enable-kms-v1.
 # Copy to /etc/kubernetes/kmsplugin/encryptionconfig.yaml on every master
 # node and point kube-apiserver at it via --encryption-provider-config.
 apiVersion: apiserver.config.k8s.io/v1
@@ -8,8 +10,8 @@ resources:
     - secrets
     providers:
     - kms:
-        apiVersion: v2
         name: grpc-kms-provider
         endpoint: unix:///var/run/kmsplugin/grpc.sock
+        cachesize: 1000
         timeout: 3s
     - identity: {}

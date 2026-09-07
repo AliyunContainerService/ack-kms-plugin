@@ -14,13 +14,19 @@ spec:
       type: DirectoryOrCreate
   containers:
   - name: ack-kms-plugin
-    image: registry.{{ .Region }}.aliyuncs.com/acs/ack-kms-plugin:v1.0.2
-    imagePullPolicy: Always
+    image: registry.{{ .Region }}.aliyuncs.com/acs/ack-kms-plugin:v1.1.0.1-g2fbff53-aliyun
+    imagePullPolicy: IfNotPresent
+    securityContext:
+      # Required: the base image runs as non-root by default and cannot
+      # bind the Unix socket otherwise.
+      runAsUser: 0
     command:
     - ack-kms-plugin
     - --gloglevel=5
     - --key-id={{ .KeyId }}
     - --path-to-unix-socket=/var/run/kmsplugin/grpc.sock
+    # For legacy clusters (< v1.27) or v1beta1-to-v2 migration, also add:
+    # - --enable-kms-v1
     livenessProbe:
       exec:
         command:
@@ -29,15 +35,19 @@ spec:
         - --path-to-unix-socket=/var/run/kmsplugin/grpc.sock
       initialDelaySeconds: 30
       failureThreshold: 3
-      timeoutSeconds: 5
-      periodSeconds: 300
-    env:
-      - name: ACCESS_KEY_ID    #not required if you want plugin help to pull the sts credentials
-        value: {{ .AK }}
-      - name: ACCESS_KEY_SECRET   #not required if you want plugin help to pull the sts credentials
-        value: {{ .AK_Secret }}
-      - name: CREDENTIAL_INTERVAL   #not required if you want plugin help to pull the sts credentials
-        value: {{ .Credential_Interval }}
+      timeoutSeconds: 10
+      periodSeconds: 60
+    # env:
+    # By default the plugin pulls STS credentials periodically from the
+    # instance metadata service (RAM role attached to the master node),
+    # which is the recommended credential mode. To use a static access
+    # key instead (not recommended), uncomment the lines below:
+    # - name: ACCESS_KEY_ID
+    #   value: {{ .AK }}
+    # - name: ACCESS_KEY_SECRET
+    #   value: {{ .AK_Secret }}
+    # - name: CREDENTIAL_INTERVAL
+    #   value: {{ .Credential_Interval }}
     volumeMounts:
     - name: kmssocket
       mountPath: /var/run/kmsplugin

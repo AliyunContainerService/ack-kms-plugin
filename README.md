@@ -4,21 +4,34 @@
 
 ## Overview ##
 
-KMS provider plugin for Alibaba Cloud - Enable encryption at rest of Kubernetes secret backed by Alibaba Cloud Key Management Service
+KMS provider plugin for Alibaba Cloud — enable encryption at rest of Kubernetes secrets backed by Alibaba Cloud Key Management Service.
+
+The plugin implements the Kubernetes **KMS v2** gRPC interface (`k8s.io/kms/apis/v2`) by default. It also supports the legacy **v1beta1** interface when explicitly enabled via the `--enable-kms-v1` flag.
 
 ## KMS API Version ##
 
-The plugin implements the Kubernetes KMS v2 gRPC interface by default. Clusters running Kubernetes v1.29+ with the v2 `EncryptionConfiguration` (API version `apiserver.config.k8s.io/v1`) can use the plugin without extra flags.
+| Mode | Flag | Registered services | Encryption prefix in etcd | Cluster version |
+|------|------|---------------------|--------------------------|-----------------|
+| **v2-only** (default) | *(none)* | v2 only | `k8s:enc:kms:v2:<name>:` | v1.29+ |
+| **Dual** | `--enable-kms-v1` | v1beta1 + v2 | v2 for writes; v1beta1 still readable | v1.27–v1.28 (migration) |
+| **Legacy** | `--enable-kms-v1` | v1beta1 + v2 | `k8s:enc:kms:v1beta1:<name>:` | < v1.27 |
 
-To also enable the legacy v1beta1 interface - for example for clusters that still use v1 encryption configuration and have v1-encrypted data at rest - start the plugin with:
+- **v2-only**: recommended for all modern clusters (v1.29+). No extra flags needed.
+- **Dual**: use during migration from v1beta1 to v2 — both services on the same socket, EncryptionConfiguration has v2 first with v1beta1 as fallback reader.
+- **Legacy**: for clusters whose apiserver does not understand `apiVersion: v2` in the KMS provider block — use a v1beta1-only EncryptionConfiguration.
 
-```bash
---enable-kms-v1
-```
+## Prerequisites ##
 
-When the flag is set, both the v1beta1 and v2 services are registered on the same Unix socket; when it is unset (default), only the v2 service is registered.
+- Kubernetes **v1.29+** for the v2 encryption configuration (`apiserver.config.k8s.io/v1`).
+- Kubernetes **v1.10+** if you also enable the legacy v1beta1 interface with `--enable-kms-v1`.
 
-For reference, the v2 encryption configuration looks like:
+## Configurations ##
+
+### Step 1: Create the EncryptionConfiguration
+
+On every master node, create `/etc/kubernetes/kmsplugin/encryptionconfig.yaml` — either copy [`manifests/encryption-provider-config.yaml`](manifests/encryption-provider-config.yaml) (v2) or [`manifests/encryption-provider-config-v1beta1.yaml`](manifests/encryption-provider-config-v1beta1.yaml) (legacy).
+
+**v2 (recommended — Kubernetes v1.29+):**
 
 ```yaml
 apiVersion: apiserver.config.k8s.io/v1
@@ -35,17 +48,33 @@ resources:
     - identity: {}
 ```
 
-## Prerequisites ##
+**v1beta1 fallback** (only if the cluster still has v1beta1-encrypted data and the plugin is started with `--enable-kms-v1`):
 
-Make sure you have a Kubernetes cluster v1.10+, as you will need the [PR](https://github.com/kubernetes/kubernetes/pull/55684) that added the gRPC-based KMS plugin service. 
+```yaml
+apiVersion: apiserver.config.k8s.io/v1
+kind: EncryptionConfiguration
+resources:
+  - resources:
+    - secrets
+    providers:
+    - kms:
+        apiVersion: v2
+        name: grpc-kms-provider-v2
+        endpoint: unix:///var/run/kmsplugin/grpc.sock
+        timeout: 3s
+    - kms:
+        name: grpc-kms-provider-v1
+        endpoint: unix:///var/run/kmsplugin/grpc.sock
+        cachesize: 1000
+        timeout: 3s
+    - identity: {}
+```
 
-## Configurations ##
+> **Note:** The v2 provider must appear first so that new secrets are written with the `k8s:enc:kms:v2:` prefix. The v1beta1 provider is kept as a reader so that existing v1beta1-encrypted secrets remain readable. Once all secrets have been re-encrypted (see the [re-encryption procedure](#re-encrypting-existing-secrets)), the v1beta1 provider can be removed.
 
-__From all master nodes:__
+**Legacy clusters (Kubernetes < v1.27):**
 
-1\. Create `/etc/kubernetes/kmsplugin/encryptionconfig.yaml`
-
-if your cluster version is 1.13 or later
+If your cluster's apiserver does not support `apiVersion: v2` in the KMS provider block, use a v1beta1-only configuration. The plugin must be started with `--enable-kms-v1` (see Step 2).
 
 ```yaml
 apiVersion: apiserver.config.k8s.io/v1
@@ -62,136 +91,179 @@ resources:
     - identity: {}
 ```
 
-__else__ prior version please use the config below:
+> For Kubernetes **< v1.13**, use the older `EncryptionConfig` (no `apiVersion: apiserver.config.k8s.io/v1`) and the `--experimental-encryption-provider-config` flag instead.
 
-```yaml
-kind: EncryptionConfig
-apiVersion: v1
-resources:
-  - resources:
-    - secrets
-    providers:
-    - kms:
-       name: grpc-kms-provider
-       cachesize: 1000
-       endpoint: unix:///var/run/kmsplugin/grpc.sock
-    - identity: {}
+### Step 2: Deploy the KMS plugin static pod
 
-```
+Replace the following variables in [`manifests/k8s-kms-plugin.yaml`](manifests/k8s-kms-plugin.yaml):
 
-2\. Replace the following variables in [`k8s-kms-plugin.yaml`](manifests/k8s-kms-plugin.yaml)
+| Variable | Description |
+|----------|-------------|
+| `{{ .Region }}` | Alibaba Cloud region id (auto-detected from ECS metadata at `http://100.100.100.200/latest/meta-data/region-id`) |
+| `{{ .KeyId }}` | The Alibaba Cloud KMS key id for secret encryption (see KMS console) |
 
-* `{{ .Region }}`: alibaba cloud region id, if your cluster deploy on ECS, you can get the value by ```curl http://100.100.100.200/latest/meta-data/region-id```
-* `{{ .KeyId }}`: the alibaba cloud KMS key id for secret encryption in KMS service list
 ![KeyId](./images/kms-key-id.png)
 
-**optional**：
+Place the manifest under `/etc/kubernetes/manifests/` on every master node. The kubelet will create a [static pod][k8s-static-pod] that starts the gRPC service. Verify on all masters:
 
-The kms plugin support auto periodically pull the Alibaba Cloud STS credentials based on the RAM role from your ECS instance metadata, the STS credentials would be used to request KMS service for 
-encryption/decryption.
+```bash
+$ kubectl -n kube-system get po | grep ack-kms-plugin
+ack-kms-plugin-cn-hongkong.192.168.0.109   1/1   Running   0   5m
+ack-kms-plugin-cn-hongkong.192.168.0.110   1/1   Running   0   5m
+```
 
+> **Legacy clusters (< v1.27):** add `--enable-kms-v1` to the plugin's `command` list so the v1beta1 gRPC service is also registered. Without this flag, the apiserver on old clusters cannot communicate with the plugin.
 
-Before you install the kms plugin, please ensure the target RAM role from ECS instance metadata has been added the required KMS permissions, firstly please login to your master ECS node and curl the URL of instance meta server as this command:
+### Step 3: Configure kube-apiserver
+
+Modify `/etc/kubernetes/manifests/kube-apiserver.yaml` on every master node.
+
+**Add the encryption flag** (in the `command` list):
+
+```yaml
+# Kubernetes v1.13+:
+--encryption-provider-config=/etc/kubernetes/kmsplugin/encryptionconfig.yaml
+
+# Kubernetes < v1.13 (legacy):
+--experimental-encryption-provider-config=/etc/kubernetes/kmsplugin/encryptionconfig.yaml
+```
+
+**Add volumes and volume mounts** so the apiserver can read the config and talk to the plugin socket:
+
+```yaml
+# In spec.containers[0].volumeMounts:
+  - mountPath: /etc/kubernetes/kmsplugin
+    name: kmsplugin-config
+    readOnly: true
+  - mountPath: /var/run/kmsplugin
+    name: kmsplugin-socket
+
+# In spec.volumes:
+  - hostPath:
+      path: /etc/kubernetes/kmsplugin
+      type: Directory
+    name: kmsplugin-config
+  - hostPath:
+      path: /var/run/kmsplugin
+      type: Directory
+    name: kmsplugin-socket
+```
+
+### Step 4: Wait for apiserver restart
+
+The kubelet will detect the manifest change and restart the apiserver on each master node. Wait for all apiservers to become `Running` and verify with `kubectl get --raw /readyz` (should return `ok`).
+
+## Credentials ##
+
+The plugin supports two credential modes. **STS credentials via RAM role (recommended)** is the default.
+
+### STS credentials (recommended)
+
+The plugin automatically pulls STS credentials from the ECS instance metadata service. No env vars are required — just ensure the master node's RAM role has the KMS permissions below.
+
+Check the RAM role name:
 
 ```bash
 curl http://100.100.100.200/latest/meta-data/ram/security-credentials/
 ```
 
-find the target role in RAM console with the name which response from last curl request, and make sure the required KMS policy below has been added. 
+Then attach the following policy to that role in the RAM console:
 
-```yaml
-        {
-            "Action": [
-                "kms:DescribeKey",
-                "kms:Encrypt",
-                "kms:Decrypt"
-            ],
-            "Resource": [
-                "*"
-            ],
-            "Effect": "Allow"
-        }
+```json
+{
+    "Action": [
+        "kms:DescribeKey",
+        "kms:Encrypt",
+        "kms:Decrypt"
+    ],
+    "Resource": ["*"],
+    "Effect": "Allow"
+}
 ```
 
-you can also configure the AK meta info in the `env` field of plugin manifest as below, if you choose to the AK way, our kms plugin will not pull the STS credentials :
+### Static Access Key (not recommended)
 
- `{{ .AK }}`and `{{ .AK_Secret }}`: the accesskey and secret of your Alibaba Cloud account, if you using subaccout, please refer to [kms ram auth][kms-ram-auth] to make sure the account has authorized using the required KMS resources.
+You may set the AK directly in the plugin pod's env, but **this is not a secure practice**:
 
-**Directly configure the RAM AK in pod's env is not a security choice, we recommend to use the STS credential way**：
+| Env var | Description |
+|---------|-------------|
+| `ACCESS_KEY_ID` | Alibaba Cloud access key id |
+| `ACCESS_KEY_SECRET` | Alibaba Cloud access key secret |
 
-then move the yaml under `/etc/kubernetes/manifests`, kubelet will create a [static pod][k8s-static-pod] that starts the gRPC service. You should do this on all master nodes, and check all of them running as:
+When static AK is provided the plugin skips STS credential refresh. Ensure the account has the KMS permissions listed above (see [RAM authorization][kms-ram-auth]).
+
+## Parameters ##
+
+### Command-line flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--key-id` | *(required)* | Alibaba Cloud KMS key id used for encryption/decryption |
+| `--path-to-unix-socket` | `/var/run/kmsplugin/socket.sock` | Full path to the Unix socket for communicating with kube-apiserver |
+| `--enable-kms-v1` | `false` | Register both v1beta1 and v2 KMS gRPC services on the same socket. Required for legacy clusters (< v1.27) and during v1beta1-to-v2 migration. When `false` (default), only v2 is registered |
+| `--gloglevel` | `0` | glog verbosity level (e.g. `5` for verbose debug logging) |
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ACK_KMS_REGION_ID` | *(auto from ECS metadata)* | Alibaba Cloud region id. Falls back to instance metadata if unset |
+| `ACK_KMS_DOMAIN` | `kms-vpc.%s.aliyuncs.com` | KMS API domain. `%s` is replaced by the region id |
+| `CREDENTIAL_INTERVAL` | `480` | Interval in seconds between STS credential refresh cycles (max 1799) |
+| `ACCESS_KEY_ID` | *(empty)* | Static access key id (disables STS refresh when set) |
+| `ACCESS_KEY_SECRET` | *(empty)* | Static access key secret |
+
+### Health subcommand
 
 ```bash
-$ kubectl -n kube-system get po | grep ack-kms-plugin
-NAME                                                         READY   STATUS    RESTARTS   AGE
-ack-kms-plugin-ap-southeast-1.i-t4n1zao4uxbpl1z3594u   1/1     Running   0          26h
-ack-kms-plugin-ap-southeast-1.i-t4nedef2k4kl57kyumey   1/1     Running   0          25h
-ack-kms-plugin-ap-southeast-1.i-t4nj9fpimvbhvi27veo2   1/1     Running   0          25h
+ack-kms-plugin health --path-to-unix-socket=/var/run/kmsplugin/grpc.sock
 ```
 
-3\. Modify `/etc/kubernetes/manifests/kube-apiserver.yaml` 
-Add the following flag:
-
-if your cluster version is 1.13 or later
-```yaml
---encryption-provider-config=/etc/kubernetes/kmsplugin/encryptionconfig.yaml
-```  
-
-prior version please use
-```yaml
---experimental-encryption-provider-config=/etc/kubernetes/kmsplugin/encryptionconfig.yaml
-``` 
-
-Mount `/var/run/kmsplugin` and `/etc/kubernetes/kmsplugin` to access the config and socket:
-
-```yaml
-...
-  volumeMounts:
-  - name: kms-sock
-    mountPath: /var/run/kmsplugin
-  - name: kms-config
-    mountPath: /etc/kubernetes/kmsplugin
-...
-  volumes:
-  - name: kms-sock
-    hostPath:
-      path: /var/run/kmsplugin
-  - name: kms-config
-    hostPath:
-      path: /etc/kubernetes/kmsplugin
-
-```
-
-4\. Wait for apiserver on all master nodes become `Running`
+The health check calls the v2 `Status` RPC first. If the server does not implement v2 (legacy mode), it falls back to the v1beta1 `Version` RPC. Exit code 0 = healthy.
 
 ## Verifying ##
 
-Now the cluster should use an envelope encryption scheme to encrypt the secret in etcd with the given key encryption key(KEK) from Alibaba Cloud KMS
+After the apiserver restarts, the cluster uses envelope encryption to encrypt secrets in etcd with the configured KMS key.
 
-1\. Create a new secret
+1\. Create a new secret:
 
 ```bash
 kubectl create secret generic secret1 -n default --from-literal=mykey=mydata
 ```
 
-2\. Using etcdctl, read the secret out of the etcd __in the master node__:
+2\. Read the raw secret from etcd **on a master node**:
 
-ps: the {{.local-ip}} should be replaced by one of the master node ip.
+> Replace `{{.local-ip}}` with the master node's IP address.
 
 ```bash
-sudo ETCDCTL_API=3 etcdctl --cacert=/etc/kubernetes/pki/etcd/ca.pem --cert=/etc/kubernetes/pki/etcd/etcd-client.pem --key=/etc/kubernetes/pki/etcd/etcd-client-key.pem --endpoints=https://{{.local-ip}}:2379 get /registry/secrets/default/secret1
+sudo ETCDCTL_API=3 etcdctl \
+  --cacert=/etc/kubernetes/pki/etcd/ca.pem \
+  --cert=/etc/kubernetes/pki/etcd/etcd-client.pem \
+  --key=/etc/kubernetes/pki/etcd/etcd-client-key.pem \
+  --endpoints=https://{{.local-ip}}:2379 \
+  get /registry/secrets/default/secret1
 ```
 
-3. Verify the stored secret is prefixed with `k8s:enc:kms:v2:grpc-kms-provider` (v2 encryption) or `k8s:enc:kms:v1:grpc-kms-provider` (legacy v1 encryption) which indicates our kms provider has encrypted the resulting data.
+3\. Verify the stored value starts with `k8s:enc:kms:v2:grpc-kms-provider:` (v2 encryption), which confirms the KMS provider has encrypted the data at rest.
 
-4\. Verify the secret is correctly decrypted:
+4\. Verify the secret can be decrypted:
 
 ```bash
 kubectl get secrets secret1 -o yaml
 ```
-the output should match `mykey: bXlkYXRh`, which is the encoded data of `mydata`. 
 
+The output should show `mykey: bXlkYXRh`, which is the base64-encoded value of `mydata`.
+
+## Re-encrypting existing secrets ##
+
+After enabling KMS encryption (or switching from v1beta1 to v2), existing secrets remain in their previous format until rewritten. To re-encrypt all secrets cluster-wide:
+
+```bash
+kubectl get secrets --all-namespaces -o json | kubectl replace -f -
+```
+
+This triggers the apiserver to re-write each secret using the current (first) encryption provider. After completion, all secrets in etcd will use the `k8s:enc:kms:v2:` prefix.
 
 [k8s-static-pod]: https://kubernetes.io/docs/tasks/administer-cluster/static-pod/
-[encrypting-config]:https://kubernetes.io/docs/tasks/administer-cluster/kms-provider/#encrypting-your-data-with-the-kms-provider
-[kms-ram-auth]:https://help.aliyun.com/document_detail/28953.html
+[encrypting-config]: https://kubernetes.io/docs/tasks/administer-cluster/kms-provider/#encrypting-your-data-with-the-kms-provider
+[kms-ram-auth]: https://help.aliyun.com/document_detail/28953.html
