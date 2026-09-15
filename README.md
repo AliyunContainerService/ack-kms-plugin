@@ -2,6 +2,10 @@
 
 [![Lint](https://github.com/AliyunContainerService/ack-kms-plugin/actions/workflows/lint.yml/badge.svg)](https://github.com/AliyunContainerService/ack-kms-plugin/actions/workflows/lint.yml)
 
+> **Important**
+>
+> This project is intended only for the deprecated ACK Dedicated clusters. For the current KMS encryption-at-rest solution used by ACK managed clusters, please refer to [Use KMS to encrypt Kubernetes secrets](https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/security-and-compliance/use-kms-to-encrypt-kubernetes-secrets-2).
+
 ## Overview ##
 
 KMS provider plugin for Alibaba Cloud — enable encryption at rest of Kubernetes secrets backed by Alibaba Cloud Key Management Service.
