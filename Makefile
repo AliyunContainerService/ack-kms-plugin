@@ -29,10 +29,10 @@ build-image:
 
 .PHONY: clean deps test testint
 
-deps: setup
+deps:
 	@echo "Ensuring Dependencies..."
 	$Q go env
-	$Q dep ensure
+	$Q go mod download
 
 clean:
 	@echo "Clean..."
@@ -40,7 +40,6 @@ clean:
 
 setup: clean
 	@echo "Setup..."
-	go get -u github.com/golang/dep/cmd/dep
 
 authors:
 	$Q git log --all --format='%aN <%cE>' | sort -u  | sed -n '/github/!p' > GITAUTHORS
@@ -51,7 +50,7 @@ authors:
 
 testint:
 	@echo "Running Integration tests..."
-	$Q sudo GOPATH=$(GOPATH) go test -v -count=1 github.com/AliyunContainerService/ack-kms-plugin/tests/client
+	$Q go test -v -count=1 ./tests/client
 
 test:
 	@echo "Running Unit Tests..."
@@ -65,13 +64,10 @@ else
 endif
 
 check:
-	go install ./main.go
+	go build .
 
-	gometalinter --concurrency=$(METALINTER_CONCURRENCY) --deadline=$(METALINTER_DEADLINE)s ./... --vendor --linter='errcheck:errcheck:-ignore=net:Close' --cyclo-over=20 \
-		--linter='vet:go vet --no-recurse -composites=false:PATH:LINE:MESSAGE' --disable=interfacer --dupl-threshold=50
+	# Linting (golangci-lint) runs in CI via .github/workflows/lint.yml,
+	# configured by .golangci.yml.
 
 check-all:
-	go install ./main.go
-	gometalinter --concurrency=$(METALINTER_CONCURRENCY) --deadline=600s ./... --vendor --cyclo-over=20 \
-		--linter='vet:go vet --no-recurse:PATH:LINE:MESSAGE' --dupl-threshold=50
-		--dupl-threshold=50
+	go build .

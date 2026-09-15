@@ -1,0 +1,32 @@
+version: "2"
+
+# Replaces the retired Go Report Card service (goreportcard.com, sunset 2026).
+# Runs roughly the same check set: gofmt, go vet, golint (revive), gocyclo,
+# ineffassign, misspell — plus the golangci-lint standard linters
+# (errcheck, staticcheck, unused).
+linters:
+  default: standard
+  enable:
+    - gocyclo
+    - misspell
+    - revive
+  settings:
+    gocyclo:
+      min-complexity: 15
+    revive:
+      rules:
+        # Parameters are often mandated by interface signatures (gRPC
+        # handlers, cobra Run funcs), so unused params are noise.
+        - name: unused-parameter
+          disabled: true
+  exclusions:
+    rules:
+      # The plugin intentionally keeps the deprecated KMS v1beta1 API and
+      # grpc.WithInsecure for legacy clusters (< v1.27) behind --enable-kms-v1.
+      - linters:
+          - staticcheck
+        text: "SA1019:"
+
+formatters:
+  enable:
+    - gofmt
