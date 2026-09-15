@@ -1,3 +1,5 @@
+// Package plugin implements the Kubernetes KMS v1beta1 and v2 gRPC services
+// backed by Alibaba Cloud KMS.
 package plugin
 
 import (
@@ -26,7 +28,7 @@ const (
 
 	requestIDAnnotationValue = "x-acs-request-id.ack.alibabacloud.com"
 	kmsRegionAnnotationValue = "x-acs-kms-region-id.ack.alibabacloud.com"
-	kmsKeyIdAnnotationValue  = "x-acs-kms-key-version-id.ack.alibabacloud.com"
+	kmsKeyIDAnnotationValue  = "x-acs-kms-key-version-id.ack.alibabacloud.com"
 )
 
 // Client is the KMS cryptographic client used by v1 and v2 gRPC servers.
@@ -180,7 +182,7 @@ func (kc *KMSClient) Encrypt(plain []byte) (*service.EncryptResponse, error) {
 
 	annotations := map[string][]byte{
 		requestIDAnnotationValue: []byte(response.RequestId),
-		kmsKeyIdAnnotationValue:  []byte(response.KeyVersionId),
+		kmsKeyIDAnnotationValue:  []byte(response.KeyVersionId),
 		kmsRegionAnnotationValue: []byte(kc.region),
 	}
 	return &service.EncryptResponse{

@@ -66,9 +66,8 @@ endif
 check:
 	go build .
 
-	# gometalinter is deprecated and does not support Go modules.
-	# Replace with golangci-lint if linting is required in CI.
-	# golangci-lint run ./...
+	# Linting (golangci-lint) runs in CI via .github/workflows/lint.yml,
+	# configured by .golangci.yml.
 
 check-all:
 	go build .

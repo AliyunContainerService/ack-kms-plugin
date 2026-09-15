@@ -1,3 +1,4 @@
+// Package cmd implements the ack-kms-plugin CLI commands.
 package cmd
 
 import (
@@ -77,10 +78,8 @@ func NewRootCommand() *cobra.Command {
 				}
 			}()
 
-			select {
-			case sig := <-signals:
-				glog.Infof("captured %v, shutting down", sig)
-			}
+			sig := <-signals
+			glog.Infof("captured %v, shutting down", sig)
 
 			server.GracefulStop()
 			return nil

@@ -36,7 +36,9 @@ func newCmdHealth() *cobra.Command {
 				glog.Fatalf("Exit cause unhealthy socket connection")
 
 			}
-			defer connection.Close()
+			defer func() {
+				_ = connection.Close()
+			}()
 
 			if err := pingRPC(ctx, connection, unixSocketPath); err != nil {
 				glog.Fatalf("Exit cause unhealthy rpc connection")

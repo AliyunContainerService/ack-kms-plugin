@@ -14,7 +14,7 @@ spec:
       type: DirectoryOrCreate
   containers:
   - name: ack-kms-plugin
-    image: registry.{{ .Region }}.aliyuncs.com/acs/ack-kms-plugin:v1.1.0.1-g2fbff53-aliyun
+    image: registry.{{ .Region }}.aliyuncs.com/acs/ack-kms-plugin:v1.1.0.3-gadca6bb-aliyun
     imagePullPolicy: IfNotPresent
     securityContext:
       # Required: the base image runs as non-root by default and cannot

@@ -1,0 +1,29 @@
+# Code quality checks — replaces the retired Go Report Card service
+# (goreportcard.com, sunset July 2026). See .golangci.yml for the check set.
+name: Lint
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          # golangci-lint v2.13 binaries are built with Go 1.27; the toolchain
+          # must be at least as new as the binary. The module itself stays on
+          # go 1.21 (see go.mod).
+          go-version: '1.27'
+
+      - uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.13.2

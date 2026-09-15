@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	// Version is the API version of the v1beta1 service.
 	Version        = "v1beta1"
 	runtime        = "Alibaba Cloud KMS"
 	runtimeVersion = "0.1.0"

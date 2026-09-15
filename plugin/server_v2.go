@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	// KMSv2APIVersion is the API version of the v2 service.
 	KMSv2APIVersion = "v2"
 	healthCheckText = "healthcheck"
 )

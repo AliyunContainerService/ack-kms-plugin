@@ -1,6 +1,6 @@
 # KMS provider plugin for Alibaba Cloud
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/AliyunContainerService/ack-kms-plugin)](https://goreportcard.com/report/github.com/AliyunContainerService/ack-kms-plugin)
+[![Lint](https://github.com/AliyunContainerService/ack-kms-plugin/actions/workflows/lint.yml/badge.svg)](https://github.com/AliyunContainerService/ack-kms-plugin/actions/workflows/lint.yml)
 
 ## Overview ##
 
@@ -100,7 +100,7 @@ Replace the following variables in [`manifests/k8s-kms-plugin.yaml`](manifests/k
 | Variable | Description |
 |----------|-------------|
 | `{{ .Region }}` | Alibaba Cloud region id (auto-detected from ECS metadata at `http://100.100.100.200/latest/meta-data/region-id`) |
-| `{{ .KeyId }}` | The Alibaba Cloud KMS key id for secret encryption (see KMS console) |
+| `{{ .KeyId }}` | The Alibaba Cloud KMS key id for secret encryption (in the KMS console, open **Resources** -> **Keys** from the left sidebar menu) |
 
 ![KeyId](./images/kms-key-id.png)
 
