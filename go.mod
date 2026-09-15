@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/aliyun/alibaba-cloud-sdk-go v1.63.11
-	github.com/golang/glog v1.1.0
+	github.com/golang/glog v1.2.4
 	github.com/spf13/cobra v0.0.3
 	github.com/spf13/pflag v1.0.5
 	golang.org/x/net v0.26.0
